@@ -26,6 +26,14 @@ mcp = FastMCP("toggl")
 API_TOKEN = os.environ.get("TOGGL_API_TOKEN", "")
 BASE_URL = "https://api.track.toggl.com/api/v9"
 
+# Debug: Log token status at startup
+logger.info(f"API Token configured: {'Yes' if API_TOKEN else 'No'}")
+if API_TOKEN:
+    logger.info(f"API Token length: {len(API_TOKEN)}")
+    logger.info(f"API Token starts with: {API_TOKEN[:8]}...")
+else:
+    logger.warning("TOGGL_API_TOKEN environment variable not found")
+
 # === UTILITY FUNCTIONS ===
 
 def get_auth_header():
@@ -79,7 +87,20 @@ async def get_workspace_id():
             response = await client.get(f"{BASE_URL}/me", headers=headers, timeout=10)
             response.raise_for_status()
             user_data = response.json()
-            return user_data.get('default_workspace_id')
+            
+            # Log the response for debugging
+            logger.info(f"User data response: {user_data}")
+            
+            workspace_id = user_data.get('default_workspace_id')
+            if not workspace_id:
+                logger.warning(f"No default_workspace_id found in response. Available keys: {list(user_data.keys())}")
+                # Try to get the first workspace if no default is set
+                workspaces = user_data.get('workspaces', [])
+                if workspaces:
+                    workspace_id = workspaces[0].get('id')
+                    logger.info(f"Using first available workspace: {workspace_id}")
+            
+            return workspace_id
         except Exception as e:
             logger.error(f"Failed to get workspace ID: {e}")
             return None
@@ -100,14 +121,15 @@ async def start_timer(description: str = "", project_id: str = "") -> str:
     try:
         workspace_id = await get_workspace_id()
         if not workspace_id:
-            return "❌ Error: Could not retrieve workspace ID"
+            return "❌ Error: Could not retrieve workspace ID. Please check your Toggl API token and account permissions. Use the debug_workspace tool to investigate further."
         
         # Prepare the time entry data
         entry_data = {
             "description": description.strip(),
             "start": datetime.now(timezone.utc).isoformat(),
             "duration": -1,  # -1 indicates a running timer
-            "created_with": "toggl-mcp-server"
+            "created_with": "toggl-mcp-server",
+            "wid": workspace_id  # Add workspace ID to request body
         }
         
         # Add project ID if provided
@@ -120,7 +142,7 @@ async def start_timer(description: str = "", project_id: str = "") -> str:
         async with httpx.AsyncClient() as client:
             headers = {"Content-Type": "application/json", **get_auth_header()}
             response = await client.post(
-                f"{BASE_URL}/workspaces/{workspace_id}/time_entries",
+                f"{BASE_URL}/time_entries",
                 json=entry_data,
                 headers=headers,
                 timeout=10
@@ -174,7 +196,7 @@ async def stop_timer() -> str:
             }
             
             response = await client.put(
-                f"{BASE_URL}/workspaces/{workspace_id}/time_entries/{entry_id}",
+                f"{BASE_URL}/time_entries/{entry_id}",
                 json=stop_data,
                 headers=headers,
                 timeout=10
@@ -192,6 +214,58 @@ async def stop_timer() -> str:
         return f"❌ API Error: {e.response.status_code} - {e.response.text}"
     except Exception as e:
         logger.error(f"Error stopping timer: {e}")
+        return f"❌ Error: {str(e)}"
+
+@mcp.tool()
+async def debug_workspace() -> str:
+    """Debug tool to check workspace ID retrieval and API connectivity."""
+    logger.info("Debugging workspace ID retrieval")
+    
+    if not API_TOKEN:
+        return "❌ Error: TOGGL_API_TOKEN not configured"
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            headers = {"Content-Type": "application/json", **get_auth_header()}
+            
+            # Test the /me endpoint
+            response = await client.get(f"{BASE_URL}/me", headers=headers, timeout=10)
+            response.raise_for_status()
+            user_data = response.json()
+            
+            debug_info = "🔍 Debug Information:\n\n"
+            debug_info += f"✅ API Connection: Success\n"
+            debug_info += f"📊 Response Status: {response.status_code}\n"
+            debug_info += f"🔑 API Token Present: {'Yes' if API_TOKEN else 'No'}\n"
+            debug_info += f"🔑 Token Length: {len(API_TOKEN) if API_TOKEN else 0}\n"
+            debug_info += f"🔑 Token Preview: {API_TOKEN[:8] + '...' if API_TOKEN else 'N/A'}\n"
+            debug_info += f"🌐 Base URL: {BASE_URL}\n\n"
+            
+            debug_info += "📋 User Data Response:\n"
+            debug_info += f"• Full Name: {user_data.get('fullname', 'N/A')}\n"
+            debug_info += f"• Email: {user_data.get('email', 'N/A')}\n"
+            debug_info += f"• Default Workspace ID: {user_data.get('default_workspace_id', 'N/A')}\n"
+            debug_info += f"• Workspaces: {len(user_data.get('workspaces', []))} found\n\n"
+            
+            # Show all workspaces
+            workspaces = user_data.get('workspaces', [])
+            if workspaces:
+                debug_info += "🏢 Available Workspaces:\n"
+                for ws in workspaces:
+                    debug_info += f"• ID: {ws.get('id')} - Name: {ws.get('name', 'N/A')}\n"
+            else:
+                debug_info += "⚠️ No workspaces found in response\n"
+            
+            # Test workspace ID retrieval function
+            workspace_id = await get_workspace_id()
+            debug_info += f"\n🔧 get_workspace_id() result: {workspace_id}\n"
+            
+            return debug_info
+            
+    except httpx.HTTPStatusError as e:
+        return f"❌ API Error: {e.response.status_code} - {e.response.text}"
+    except Exception as e:
+        logger.error(f"Error in debug_workspace: {e}")
         return f"❌ Error: {str(e)}"
 
 @mcp.tool()

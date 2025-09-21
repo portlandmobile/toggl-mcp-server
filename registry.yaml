@@ -1,0 +1,9 @@
+registry:
+  duckduckgo:
+    ref: ""
+  github-official:
+    ref: ""
+  dice:
+    ref: ""
+  toggl:
+    ref: ""

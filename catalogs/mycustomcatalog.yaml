@@ -1,0 +1,63 @@
+version: 2
+name: custom
+displayName: Custom MCP Servers
+registry:
+  dice:
+    description: "Simple dice roller MCP server for tabletop gaming and D&D"
+    title: "Dice Roller"
+    type: server
+    dateAdded: "2025-09-19T21:34:00Z"
+    image: dice-mcp-server:latest
+    ref: ""
+    readme: ""
+    toolsUrl: ""
+    source: ""
+    upstream: ""
+    icon: ""
+    tools:
+      - name: roll_dice
+      - name: flip_coin
+      - name: roll_stats
+      - name: roll_advantage
+      - name: roll_disadvantage
+      - name: roll_percentile
+      - name: roll_custom
+    secrets: []
+    metadata:
+      category: productivity
+      tags:
+        - gaming
+        - dice
+        - dnd
+        - random
+      license: MIT
+      owner: local
+  toggl:
+    description: "Time tracking with Toggl - start timers, stop timers, and view stats"
+    title: "Toggl Time Tracking"
+    type: server
+    dateAdded: "2025-01-20T00:00:00Z"
+    image: toggl-mcp-server:latest
+    ref: ""
+    readme: ""
+    toolsUrl: ""
+    source: ""
+    upstream: ""
+    icon: ""
+    tools:
+      - name: start_timer
+      - name: stop_timer
+      - name: view_timer_stats
+    secrets:
+      - name: TOGGL_API_TOKEN
+        env: TOGGL_API_TOKEN
+        example: "your_toggl_api_token_from_profile_settings"
+    metadata:
+      category: productivity
+      tags:
+        - time-tracking
+        - toggl
+        - productivity
+        - timer
+      license: MIT
+      owner: local
